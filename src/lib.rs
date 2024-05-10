@@ -11,9 +11,11 @@
 //! * Assumes only one thread calls wait(). If multiple concurrent wait() is detected,
 //! will panic for this invalid usage.
 //!
-//! * done() can be called by multiple coroutines other than the one calls wait().
+//! * done() & wait() is allowed to called concurrently.
 //!
-//! * Do not call add() & done() concurrently
+//! * add() & done() is allowed to called concurrently.
+//!
+//! * add() & wait() will not conflict, but concurrent calls are not a good pattern.
 //!
 //! # Example
 //!
@@ -97,11 +99,6 @@ impl WaitGroup {
     }
 
     /// Add specified count.
-    ///
-    /// # NOTE
-    ///
-    /// Although add() does not conflict with wait()/wait_to(),
-    /// Be sure to avoid concurrency of add() & done() which might lead to ill logic.
     #[inline(always)]
     pub fn add(&self, i: usize) {
         self.0.left.fetch_add(i as i64, Ordering::SeqCst);
@@ -174,10 +171,6 @@ impl WaitGroup {
     }
 
     /// Decrease count by one.
-    ///
-    /// # NOTE
-    ///
-    /// Be sure to avoid concurrency of add() & done() which might lead to ill logic.
     #[inline]
     pub fn done(&self) {
         let inner = self.0.as_ref();
