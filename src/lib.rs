@@ -2,7 +2,7 @@
 //! A waitgroup support async with advanced features,
 //! implemented with atomic operations to reduce locking in mind.
 //!
-//! # Features
+//! # Features & restrictions
 //!
 //! * wait_to() is supported to wait for a value larger than zero.
 //!
@@ -12,6 +12,8 @@
 //! will panic for this invalid usage.
 //!
 //! * done() can be called by multiple coroutines other than the one calls wait().
+//!
+//! * Do not call add() & done() concurrently
 //!
 //! # Example
 //!
@@ -96,8 +98,10 @@ impl WaitGroup {
 
     /// Add specified count.
     ///
-    /// NOTE: although add() does not conflict with wait, we advise to avoid concurrency which lead
-    /// to ill logic
+    /// # NOTE
+    ///
+    /// Although add() does not conflict with wait()/wait_to(),
+    /// Be sure to avoid concurrency of add() & done() which might lead to ill logic.
     #[inline(always)]
     pub fn add(&self, i: usize) {
         self.0.left.fetch_add(i as i64, Ordering::SeqCst);
@@ -133,11 +137,11 @@ impl WaitGroup {
 
     /// Wait until specified count is left in the WaitGroup.
     ///
-    /// return false means there's no waiting happened.
+    /// Return false means there's no waiting happened.
     ///
-    /// return true means the blocking actually happened.
+    /// Return true means the blocking actually happened.
     ///
-    /// # NOTE:
+    /// # NOTE
     ///
     /// * Only assume one waiting future at the same time, otherwise will panic.
     ///
@@ -159,7 +163,7 @@ impl WaitGroup {
 
     /// Wait until zero count in the WaitGroup.
     ///
-    /// # NOTE:
+    /// # NOTE
     ///
     /// * Only assume one waiting future at the same time, otherwise will panic.
     ///
@@ -170,6 +174,10 @@ impl WaitGroup {
     }
 
     /// Decrease count by one.
+    ///
+    /// # NOTE
+    ///
+    /// Be sure to avoid concurrency of add() & done() which might lead to ill logic.
     #[inline]
     pub fn done(&self) {
         let inner = self.0.as_ref();

@@ -1,11 +1,11 @@
 [package]
 name = "atomic-waitgroup"
 authors = ["plan <frostyplanet@gmail.com>"]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "BSD-1-Clause"
 readme = "README.md"
-description = "A waitgroup implementation supports async with advanced feature"
+description = "A waitgroup implementation supports async with advanced features"
 documentation = "https://docs.rs/atomic-waitgroup"
 repository = "https://github.com/frostyplanet/atomic-waitgroup-rs/"
 keywords = ["async", "waitgroup", "concurrency"]
