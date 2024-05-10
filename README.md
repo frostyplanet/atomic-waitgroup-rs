@@ -12,4 +12,8 @@ implemented with atomic operations to reduce locking in mind.
 * Assumes only one thread calls wait(). If multiple concurrent wait() is detected,
 will panic for this invalid usage.
 
-* done() can be called by multiple coroutines other than the one calls wait().
+* done() & wait() is allowed to called concurrently.
+
+* add() & done() is allowed to called concurrently.
+
+* add() & wait() will not conflict, but concurrent calls are not a good pattern.
