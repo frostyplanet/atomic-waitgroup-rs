@@ -1,0 +1,22 @@
+[package]
+name = "atomic-waitgroup"
+authors = ["plan <frostyplanet@gmail.com>"]
+version = "0.1.0"
+edition = "2021"
+license = "BSD-1-Clause"
+readme = "README.md"
+description = "A waitgroup implementation supports async with advanced feature"
+documentation = "https://docs.rs/atomic-waitgroup"
+repository = "https://github.com/frostyplanet/atomic-waitgroup-rs/"
+keywords = ["async", "waitgroup", "concurrency"]
+categories = ["concurrency", "data-structures"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+parking_lot = "0"
+log = "0"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["time", "sync", "rt-multi-thread"] }
+rand = "0.7"
