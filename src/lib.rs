@@ -1,5 +1,5 @@
 //!
-//! A waitgroup support async with advanced Features,
+//! A waitgroup support async with advanced features,
 //! implemented with atomic operations to reduce locking in mind.
 //!
 //! # Features
@@ -30,12 +30,14 @@
 //!             drop(_guard);
 //!         });
 //!     }
-//!     match tokio::time::timeout(tokio::time::Duration::from_secs(1), wg.wait_to(1)).await {
+//!     match tokio::time::timeout(
+//!         tokio::time::Duration::from_secs(1),
+//!         wg.wait_to(1)).await {
 //!         Ok(_) => {
-//!          assert!(wg.left() <= 1);
+//!             assert!(wg.left() <= 1);
 //!         }
 //!         Err(_) => {
-//!          println!("wg.wait_to(1) timeouted");
+//!             println!("wg.wait_to(1) timeouted");
 //!         }
 //!     }
 //! });
@@ -59,10 +61,10 @@ use parking_lot::Mutex;
 
 NOTE: Multiple atomic operation must happen at the same order
 
- WaitGroupFuture |   done()
+WaitGroupFuture |   done()
 ----------
 left.load()     |   left -=1
-waiting = true    |    load_waiting
+waiting = true  |   load_waiting
 left.load ()    |
 ------------
 
@@ -116,7 +118,7 @@ impl WaitGroup {
     /// rt.block_on(async move {
     ///     let _guard = wg.add_guard();
     ///     tokio::spawn(async move {
-    ///     // Do something
+    ///         // Do something
     ///         drop(_guard);
     ///     });
     ///     wg.wait().await;

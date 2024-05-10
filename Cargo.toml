@@ -1,7 +1,7 @@
 [package]
 name = "atomic-waitgroup"
 authors = ["plan <frostyplanet@gmail.com>"]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 license = "BSD-1-Clause"
 readme = "README.md"
