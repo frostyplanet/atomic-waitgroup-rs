@@ -53,12 +53,11 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{
-        atomic::{AtomicI64, AtomicU64, Ordering},
+        atomic::{AtomicI64, Ordering},
         Arc,
     },
     task::{Context, Poll, Waker},
 };
-
 use parking_lot::Mutex;
 
 /*
@@ -66,11 +65,13 @@ use parking_lot::Mutex;
 NOTE: Multiple atomic operation must happen at the same order
 
 WaitGroupFuture |   done()
-----------
-left.load()     |   left -=1
-waiting = true  |   load_waiting
+----------------|
+left.load()     |
+                |   left -=1
+                |   load_waiting
+waiting = true  |
 left.load ()    |
-------------
+------------------------------
 
 */
 pub struct WaitGroup(Arc<WaitGroupInner>);
@@ -82,6 +83,14 @@ impl Clone for WaitGroup {
     }
 }
 
+macro_rules! log_and_panic {
+    ($($arg:tt)+) => (
+        error!($($arg)+);
+        panic!($($arg)+);
+    );
+}
+
+
 impl WaitGroup {
     pub fn new() -> Self {
         Self(WaitGroupInner::new())
@@ -92,16 +101,19 @@ impl WaitGroup {
     pub fn left(&self) -> usize {
         let count = self.0.left.load(Ordering::SeqCst);
         if count < 0 {
-            error!("WaitGroup.left {} < 0", count);
-            panic!("WaitGroup.left {} < 0", count);
+            log_and_panic!("WaitGroup.left {} < 0", count);
         }
         count as usize
     }
 
     /// Add specified count.
+    ///
+    /// NOTE: You should always add() before done()
     #[inline(always)]
     pub fn add(&self, i: usize) {
-        self.0.left.fetch_add(i as i64, Ordering::SeqCst);
+        // "add" must be always first than "done", use Acquire to prevent code behine re-order to
+        // previous position.
+        self.0.left.fetch_add(i as i64, Ordering::Acquire);
     }
 
     /// Add one to the WaitGroup, return a guard to decrease the count on drop.
@@ -126,7 +138,7 @@ impl WaitGroup {
     /// });
     #[inline(always)]
     pub fn add_guard(&self) -> WaitGroupGuard {
-        self.0.left.fetch_add(1, Ordering::SeqCst);
+        self.add(1);
         WaitGroupGuard {
             inner: self.0.clone(),
         }
@@ -152,7 +164,7 @@ impl WaitGroup {
         WaitGroupFuture {
             wg: &_self,
             target,
-            waker_id: 0,
+            waker: None,
         }
         .await;
         return true;
@@ -197,10 +209,11 @@ impl Drop for WaitGroupGuard {
 }
 
 struct WaitGroupInner {
+    /// The current count
     left: AtomicI64,
+    /// The target count (>=0) if someone waiting, if no one is waiting, should be -1
     waiting: AtomicI64,
-    waker: Mutex<Option<Waker>>,
-    waker_id: AtomicU64,
+    waker: Mutex<Option<Arc<Waker>>>,
 }
 
 impl WaitGroupInner {
@@ -210,17 +223,16 @@ impl WaitGroupInner {
             left: AtomicI64::new(0),
             waiting: AtomicI64::new(-1),
             waker: Mutex::new(None),
-            waker_id: AtomicU64::new(0),
         })
     }
     #[inline]
     fn done(&self, count: i64) {
+        // There's SeqCst behind, it's ok to use Relaxed
         let left = self.left.fetch_sub(count, Ordering::SeqCst) - count;
-        let waiting = self.waiting.load(Ordering::Acquire);
         if left < 0 {
-            error!("WaitGroup.left {} < 0", left);
-            panic!("WaitGroup.left {} < 0", left);
+            log_and_panic!("WaitGroup.left {} < 0", left);
         }
+        let waiting = self.waiting.load(Ordering::SeqCst);
         if waiting < 0 {
             return;
         }
@@ -233,27 +245,30 @@ impl WaitGroupInner {
     }
 
     /// Once waker set, waker might be false waken many times
-    /// Returns: waker_id
     #[inline]
-    fn set_waker(&self, waker: Waker, target: usize) -> u64 {
-        let waker_id = self.waker_id.fetch_add(1, Ordering::SeqCst) + 1;
+    fn set_waker(&self, waker: Arc<Waker>, target: usize, force: bool) {
         {
             let mut guard = self.waker.lock();
-            guard.replace(waker);
+            if !force {
+                if guard.is_some() {
+                    drop(guard);
+                    log_and_panic!("concurrent wait detected");
+                }
+                guard.replace(waker);
+            }
             let old_target = self.waiting.swap(target as i64, Ordering::SeqCst);
-            if old_target >= 0 {
-                panic!("Concurrent wait() by multiple coroutines is not supported")
+            drop(guard);
+            if ! force && old_target >= 0 {
+                log_and_panic!("Concurrent wait() by multiple coroutines, enter unlikely code");
             }
         }
-        waker_id
     }
 
     #[inline]
-    fn cancel_wait(&self, waker_id: u64) {
-        let mut guard = self.waker.lock();
-        // In case wait() is canceled, eg. tokio timeout, do not disrupt other thread wait()
-        if self.waker_id.load(Ordering::Acquire) == waker_id {
-            self.waiting.store(-1, Ordering::Release);
+    fn cancel_wait(&self) {
+        {
+            let mut guard = self.waker.lock();
+            self.waiting.store(-1, Ordering::SeqCst);
             let _ = guard.take();
         }
     }
@@ -262,13 +277,14 @@ impl WaitGroupInner {
 struct WaitGroupFuture<'a> {
     wg: &'a WaitGroupInner,
     target: usize,
-    waker_id: u64,
+    waker: Option<Arc<Waker>>,
 }
 
 impl<'a> WaitGroupFuture<'a> {
     #[inline(always)]
     fn _poll(&mut self) -> bool {
-        let cur = self.wg.left.load(Ordering::Acquire);
+        // Use SeqCst to avoid reading old value
+        let cur = self.wg.left.load(Ordering::SeqCst);
         if cur <= self.target as i64 {
             self._clear();
             true
@@ -279,11 +295,10 @@ impl<'a> WaitGroupFuture<'a> {
 
     #[inline(always)]
     fn _clear(&mut self) {
-        if self.waker_id == 0 {
+        if self.waker.is_none() {
             return;
         }
-        self.wg.cancel_wait(self.waker_id);
-        self.waker_id = 0;
+        self.wg.cancel_wait();
     }
 }
 
@@ -299,12 +314,26 @@ impl<'a> Future for WaitGroupFuture<'a> {
 
     fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
         let _self = self.get_mut();
-        if _self.waker_id == 0 {
-            if _self._poll() {
-                return Poll::Ready(());
-            }
-            _self.waker_id = _self.wg.set_waker(ctx.waker().clone(), _self.target);
+        if _self._poll() {
+            return Poll::Ready(());
         }
+        let force = {
+            if let Some(waker) = _self.waker.as_ref() {
+                // Sometimes tokio will make waker ineffect,
+                // we should always check before reuse the same waker.
+                if waker.will_wake(ctx.waker()) {
+                    return Poll::Pending;
+                }
+                // The waker is not usable, reg another
+                true
+            } else {
+                false
+            }
+        };
+        // The Arc is for checking waker without lock
+        let waker = Arc::new(ctx.waker().clone());
+        _self.wg.set_waker(waker.clone(), _self.target, force);
+        _self.waker.replace(waker);
         if _self._poll() {
             return Poll::Ready(());
         }
@@ -339,7 +368,6 @@ mod tests {
                 assert!(_wg.wait_to(1).await);
             });
             sleep(Duration::from_secs(1)).await;
-            assert_eq!(wg.0.waker_id.load(Ordering::Acquire), 1);
             {
                 let guard = wg.0.waker.lock();
                 assert!(guard.is_some());
@@ -347,7 +375,6 @@ mod tests {
             }
             wg.done();
             let _ = th.await;
-            assert_eq!(wg.0.waker_id.load(Ordering::Acquire), 1);
             assert_eq!(wg.0.waiting.load(Ordering::Acquire), -1);
             assert_eq!(wg.left(), 1);
             wg.done();
@@ -374,7 +401,6 @@ mod tests {
                 _wg.wait().await;
             });
             sleep(Duration::from_millis(200)).await;
-            assert_eq!(wg.0.waker_id.load(Ordering::Acquire), 2);
             wg.done();
             wg.done();
             let _ = th.await;
