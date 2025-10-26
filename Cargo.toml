@@ -13,10 +13,18 @@ categories = ["concurrency", "data-structures"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+default = []
+smol = [] # just for test
+trace_log = [] # test for test
+
 [dependencies]
 parking_lot = "0"
 log = "0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["time", "sync", "rt-multi-thread"] }
+captains-log = {version=">=0.15", features = ["ringfile", "tracing"]}
 rand = "0.7"
+rstest = "0"
+smol = "2"

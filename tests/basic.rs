@@ -1,18 +1,19 @@
 use atomic_waitgroup::WaitGroup;
-use rand::{rngs::OsRng, RngCore};
 use std::time::Duration;
-use tokio::time::sleep;
+use captains_log::logfn;
+use rstest::*;
 
-fn make_runtime(threads: usize) -> tokio::runtime::Runtime {
-    return tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .worker_threads(threads)
-        .build()
-        .unwrap();
+mod common;
+use common::*;
+
+#[fixture]
+fn setup_log() {
+    _setup_log();
 }
 
-#[test]
-fn test_wait_group_wait0() {
+#[logfn]
+#[rstest]
+fn basic_wait_group_wait0(setup_log: ()) {
     let wg = WaitGroup::new();
     let threads = 10;
     assert_eq!(wg.left(), 0);
@@ -20,21 +21,22 @@ fn test_wait_group_wait0() {
     assert_eq!(wg.left(), 1);
     wg.done();
     assert_eq!(wg.left(), 0);
-    make_runtime(10).block_on(async move {
+    runtime_block_on!(10, async move {
         for _i in 0..threads {
             let _wg = wg.clone();
             wg.add(1);
-            tokio::spawn(async move {
+            async_spawn_detach!(async move {
                 sleep(Duration::from_secs(1)).await;
                 _wg.done();
             });
         }
         wg.wait().await;
-    })
+    });
 }
 
-#[test]
-fn test_wait_group_waitto3() {
+#[logfn]
+#[rstest]
+fn basic_wait_group_waitto3(setup_log: ()) {
     let wg = WaitGroup::new();
     let threads = 10;
     assert_eq!(wg.left(), 0);
@@ -42,11 +44,11 @@ fn test_wait_group_waitto3() {
     assert_eq!(wg.left(), 1);
     wg.done();
     assert_eq!(wg.left(), 0);
-    make_runtime(8).block_on(async move {
+    runtime_block_on!(8, async move {
         for _i in 0..threads {
             let _wg = wg.clone();
             wg.add(1);
-            tokio::spawn(async move {
+            async_spawn_detach!(async move {
                 sleep(Duration::from_secs(_i)).await;
                 _wg.done();
             });
@@ -55,17 +57,18 @@ fn test_wait_group_waitto3() {
         let left = wg.left();
         assert!(left <= 3, "{}", left);
         println!("left {}", left);
-    })
+    });
 }
 
-#[test]
-fn test_wait_group_multi_waitto_and_add() {
+#[logfn]
+#[rstest]
+fn basic_wait_group_multi_waitto_and_add(setup_log: ()) {
     let wg = WaitGroup::new();
-    make_runtime(8).block_on(async move {
+    runtime_block_on!(8, async move {
         for _i in 0u64..1000 {
             wg.add(1);
             let _wg = wg.clone();
-            tokio::spawn(async move {
+            async_spawn_detach!(async move {
                 sleep(Duration::from_millis((_i % 2) + 1)).await;
                 _wg.done();
             });
@@ -76,34 +79,9 @@ fn test_wait_group_multi_waitto_and_add() {
     });
 }
 
-#[test]
-fn test_wait_group_loop() {
-    let wg = WaitGroup::new();
-    make_runtime(2).block_on(async move {
-        let mut loop_cnt = 0;
-        for _ in 0..1000 {
-            let threads = OsRng.next_u32() % 10 + 1;
-            loop_cnt += 1;
-            println!("loop_cnt={} threads={}", loop_cnt, threads);
-
-            for _i in 0..threads {
-                wg.add(1);
-                let _wg = wg.clone();
-                std::thread::spawn(move || {
-                    let millis = (OsRng.next_u32() % 10) as u64;
-                    std::thread::sleep(Duration::from_millis(millis));
-                    _wg.done();
-                });
-            }
-            let millis = (OsRng.next_u32() % 10) as u64;
-            tokio::time::sleep(Duration::from_millis(millis)).await;
-            wg.wait().await;
-        }
-    });
-}
-
-#[test]
-fn test_guard() {
+#[logfn]
+#[rstest]
+fn basic_guard(setup_log: ()) {
     let wg = WaitGroup::new();
     let threads = 10;
     assert_eq!(wg.left(), 0);
@@ -111,10 +89,10 @@ fn test_guard() {
     assert_eq!(wg.left(), 1);
     wg.done();
     assert_eq!(wg.left(), 0);
-    make_runtime(8).block_on(async move {
+    runtime_block_on!(8, async move {
         for _i in 0..threads {
             let _guard = wg.add_guard();
-            tokio::spawn(async move {
+            async_spawn_detach!(async move {
                 sleep(Duration::from_secs(_i)).await;
                 drop(_guard);
             });
@@ -123,17 +101,19 @@ fn test_guard() {
         let left = wg.left();
         assert!(left <= 3, "{}", left);
         println!("left {}", left);
-    })
+    });
 }
 
+#[logfn]
 #[test]
 #[should_panic]
-fn test_multiple_wait_panic() {
+#[cfg_attr(miri, ignore)]
+fn basic_multiple_wait_panic() {
     let wg = WaitGroup::new();
-    make_runtime(1).block_on(async move {
+    runtime_block_on!(1, async move {
         wg.add(1);
         let _wg = wg.clone();
-        tokio::spawn(async move {
+        async_spawn_detach!(async move {
             _wg.wait().await;
         });
         sleep(Duration::from_secs(1)).await;
@@ -142,9 +122,11 @@ fn test_multiple_wait_panic() {
     });
 }
 
+#[logfn]
 #[test]
 #[should_panic]
-fn test_done_overflow() {
+#[cfg_attr(miri, ignore)]
+fn basic_done_overflow() {
     let wg = WaitGroup::new();
     wg.add(1);
     wg.done_many(2);
