@@ -1,12 +1,12 @@
+//! A waitgroup support async with advanced features
 //!
-//! A waitgroup support async with advanced features,
-//! implemented with atomic operations to reduce locking in mind.
+//! implemented with atomic operations to reduce locking.
 //!
 //! # Features & restrictions
 //!
-//! * wait_to() is supported to wait for a value larger than zero.
+//! * wait_to() supports waiting for a value >= zero
 //!
-//! * wait() & wait_to() can be canceled by tokio::time::timeout or futures::select!.
+//! * wait() & wait_to() can be canceled wrapped by timeout or futures::select!.
 //!
 //! * Assumes only one thread calls wait(). If multiple concurrent wait() is detected,
 //! will panic for this invalid usage.
@@ -14,8 +14,6 @@
 //! * done() & wait() is allowed to called concurrently.
 //!
 //! * add() & done() is allowed to called concurrently.
-//!
-//! * add() & wait() will not conflict, but concurrent calls are not a good pattern.
 //!
 //! # Example
 //!
@@ -119,7 +117,8 @@ impl WaitGroup {
     /// NOTE: You should always add() before done()
     #[inline(always)]
     pub fn add(&self, i: usize) {
-        let _r = self.0.left.fetch_add(i as i64, Ordering::SeqCst);
+        // To prevent code below re-order above, use Acquire here.
+        let _r = self.0.left.fetch_add(i as i64, Ordering::Acquire);
         trace_log!("add {}->{}", i, _r + i as i64);
     }
 
@@ -164,7 +163,7 @@ impl WaitGroup {
     /// * Canceling future is supported.
     pub async fn wait_to(&self, target: usize) -> bool {
         let _self = self.0.as_ref();
-        // We will check again with SeqCst later
+        // We will check again with SeqCst later to prevent deadlock
         let left = _self.left.load(Ordering::Acquire);
         if left <= target as i64 {
             trace_log!("wait_to skip {} <= target {}", left, target);
