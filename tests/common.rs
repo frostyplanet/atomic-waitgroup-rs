@@ -1,10 +1,5 @@
 use captains_log::*;
 
-#[cfg(not(miri))]
-pub const ROUND: usize = 10000;
-#[cfg(miri)]
-pub const ROUND: usize = 20;
-
 pub fn _setup_log() {
     #[cfg(feature = "trace_log")]
     {
@@ -12,7 +7,7 @@ pub fn _setup_log() {
         #[cfg(miri)]
         {
             let _ = std::fs::remove_file("/tmp/wg_miri.log");
-            let file = LogRawFile::new("/tmp", "wg_miri.log", Level::Debug, format);
+            let file = LogRawFile::new("/tmp", "wg_miri.log", Level::Trace, format);
             captains_log::Builder::default()
                 .tracing_global()
                 .add_sink(file)
@@ -25,7 +20,7 @@ pub fn _setup_log() {
             let ring = ringfile::LogRingFile::new(
                 "/tmp/wg_ring.log",
                 500 * 1024 * 1024,
-                Level::Debug,
+                Level::Trace,
                 format,
             );
             let mut config = Builder::default()
@@ -104,6 +99,7 @@ macro_rules! async_join_result {
 }
 
 
+#[allow(dead_code)]
 pub async fn sleep(duration: std::time::Duration) {
     #[cfg(feature = "smol")]
     {
