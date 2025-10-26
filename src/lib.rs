@@ -90,6 +90,14 @@ macro_rules! log_and_panic {
     );
 }
 
+macro_rules! trace_log {
+    ($($arg:tt)+) => (
+        #[cfg(feature="trace_log")]
+        {
+            log::trace!($($arg)+);
+        }
+    );
+}
 
 impl WaitGroup {
     pub fn new() -> Self {
@@ -111,9 +119,8 @@ impl WaitGroup {
     /// NOTE: You should always add() before done()
     #[inline(always)]
     pub fn add(&self, i: usize) {
-        // "add" must be always first than "done", use Acquire to prevent code behine re-order to
-        // previous position.
-        self.0.left.fetch_add(i as i64, Ordering::Acquire);
+        let _r = self.0.left.fetch_add(i as i64, Ordering::SeqCst);
+        trace_log!("add {}->{}", i, _r + i as i64);
     }
 
     /// Add one to the WaitGroup, return a guard to decrease the count on drop.
@@ -157,8 +164,10 @@ impl WaitGroup {
     /// * Canceling future is supported.
     pub async fn wait_to(&self, target: usize) -> bool {
         let _self = self.0.as_ref();
+        // We will check again with SeqCst later
         let left = _self.left.load(Ordering::Acquire);
         if left <= target as i64 {
+            trace_log!("wait_to skip {} <= target {}", left, target);
             return false;
         }
         WaitGroupFuture {
@@ -234,19 +243,31 @@ impl WaitGroupInner {
         }
         let waiting = self.waiting.load(Ordering::SeqCst);
         if waiting < 0 {
+            trace_log!("done {}->{} not waiting", count, left);
             return;
         }
         if left <= waiting {
             // Do not take waker, it may be false waken when done() happened before newer wait()
-            if let Some(waker) = self.waker.lock().as_ref() {
-                waker.wake_by_ref();
+            {
+                let guard = self.waker.lock();
+                if let Some(waker) = guard.as_ref() {
+                    waker.wake_by_ref();
+                    drop(guard);
+                    trace_log!("done {}->{} wake {}", count, left, waiting);
+                } else {
+                    drop(guard);
+                    trace_log!("done {}->{} waiting{} but no waker", count, left, waiting);
+                }
             }
+        } else {
+            trace_log!("done {}->{} waiting {}", count, left, waiting);
         }
     }
 
     /// Once waker set, waker might be false waken many times
     #[inline]
     fn set_waker(&self, waker: Arc<Waker>, target: usize, force: bool) {
+        trace_log!("set_waker {} force={}", target, force);
         {
             let mut guard = self.waker.lock();
             if !force {
@@ -266,6 +287,7 @@ impl WaitGroupInner {
 
     #[inline]
     fn cancel_wait(&self) {
+        trace_log!("cancel_wait");
         {
             let mut guard = self.waker.lock();
             self.waiting.store(-1, Ordering::SeqCst);
@@ -286,9 +308,11 @@ impl<'a> WaitGroupFuture<'a> {
         // Use SeqCst to avoid reading old value
         let cur = self.wg.left.load(Ordering::SeqCst);
         if cur <= self.target as i64 {
+            trace_log!("poll ready {}<={}", cur, self.target);
             self._clear();
             true
         } else {
+            trace_log!("poll not ready {}>{}", cur, self.target);
             false
         }
     }

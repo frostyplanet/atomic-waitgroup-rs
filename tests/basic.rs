@@ -104,6 +104,7 @@ fn basic_guard(setup_log: ()) {
     });
 }
 
+#[cfg(not(feature="trace_log"))]
 #[logfn]
 #[test]
 #[should_panic]
@@ -122,6 +123,7 @@ fn basic_multiple_wait_panic() {
     });
 }
 
+#[cfg(not(feature="trace_log"))]
 #[logfn]
 #[test]
 #[should_panic]
