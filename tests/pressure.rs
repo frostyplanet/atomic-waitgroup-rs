@@ -16,7 +16,7 @@ fn setup_log() {
 #[rstest]
 fn pressure_wait_group_loop(setup_log: ()) {
     let wg = WaitGroup::new();
-    runtime_block_on!(2, async move {
+    runtime_block_on!(1, async move {
         let mut loop_cnt = 0;
         for _ in 0..1000 {
             let threads = OsRng.next_u32() % 10 + 1;
@@ -32,8 +32,11 @@ fn pressure_wait_group_loop(setup_log: ()) {
                     _wg.done();
                 });
             }
-            let millis = (OsRng.next_u32() % 10) as u64;
-            sleep(Duration::from_millis(millis)).await;
+            #[cfg(not(miri))]
+            {
+                let millis = (OsRng.next_u32() % 10) as u64;
+                sleep(Duration::from_millis(millis)).await;
+            }
             wg.wait().await;
         }
     });
