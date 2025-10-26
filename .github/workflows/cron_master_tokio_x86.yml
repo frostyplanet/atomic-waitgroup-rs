@@ -1,0 +1,30 @@
+name: cron-master-tokio-x86
+
+on:
+  schedule: [cron: "0 */5 * * *"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Run tests with tokio multi-thread
+      run: env WORKFLOW=1 make test
+
+    - name: Run tests with tokio current-thread
+      run: env WORKFLOW=1 SINGLE_THREAD_RUNTIME=1 make test
+
+    - name: Run tests with tokio multi-thread --release
+      run: env WORKFLOW=1 make test_release
+
+    - name: Run tests with tokio current-thread --release
+      run: env WORKFLOW=1 SINGLE_THREAD_RUNTIME=1 make test_release

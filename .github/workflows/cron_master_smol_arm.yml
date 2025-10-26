@@ -1,0 +1,35 @@
+name: cron-master-smol-arm
+
+on:
+  schedule: [cron: "0 */4 * * *"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+
+    runs-on: "macos-15"
+
+    steps:
+    - uses: actions/checkout@v2
+
+      # We use cargo-nextest because cargo test does not forward cancellation signal
+    - uses: taiki-e/install-action@nextest
+
+    - name: Run tests with smol
+      run: env WORKFLOW=1 make test_smol
+
+    - name: Run test with smol release
+      run: env WORKFLOW=1 make test_smol_release
+
+    - name: Run test with smol release and trace_log
+      run: WORKFLOW=1 exec cargo nextest run -F="smol,trace_log" --hide-progress-bar -j 1 --no-capture -r
+
+    - name: Dump log on cancel
+      if: ${{ cancelled() || failure() }}
+      uses: actions/upload-artifact@v4
+      with:
+          name: waitgroup_ring
+          path: /tmp/wg_ring.log

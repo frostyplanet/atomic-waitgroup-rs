@@ -1,0 +1,43 @@
+name: cron-master-tokio-arm
+
+on:
+  schedule: [cron: "0 */4 * * *"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+
+    runs-on: "macos-15"
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: cargo build --verbose
+
+    - name: Run tests with tokio multi-thread with trace_log
+      run: env WORKFLOW=1 make test_log
+
+    - name: Run tests with tokio multi-thread without log
+      run: env WORKFLOW=1 make test
+
+        #- name: Run tests with tokio current-thread
+        #  run: env WORKFLOW=1 SINGLE_THREAD_RUNTIME=1 make test
+
+    - name: Run tests with tokio multi-thread --release with trace_log
+      run: env WORKFLOW=1 make test_log_release
+
+    - name: Run tests with tokio multi-thread --release
+      run: env WORKFLOW=1 make test_release
+
+        #- name: Run tests with tokio current-thread --release
+        #run: env WORKFLOW=1 SINGLE_THREAD_RUNTIME=1 make test_release
+
+    - name: Dump log on cancel
+      if: ${{ cancelled() || failure() }}
+      uses: actions/upload-artifact@v4
+      with:
+          name: waitgroup_ring
+          path: /tmp/wg_ring.log

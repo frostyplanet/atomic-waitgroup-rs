@@ -1,0 +1,27 @@
+name: fast-validation
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - ready_for_review
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Build with default
+      run: cargo build --verbose
+
+    - name: Run basic tests with tokio
+      run: make test basic
