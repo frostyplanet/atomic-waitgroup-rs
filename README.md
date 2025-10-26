@@ -3,6 +3,8 @@
 A waitgroup support async with advanced features,
 implemented with atomic operations to reduce locking in mind.
 
+document: <https://docs.rs/atomic-waitgroup/latest/atomic_waitgroup/>
+
 ## Features
 
 * wait_to() is supported to wait for a value larger than zero.
