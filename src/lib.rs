@@ -246,18 +246,18 @@ impl WaitGroupInner {
             return;
         }
         if left <= waiting {
-            // Do not take waker, it may be false waken when done() happened before newer wait()
-            {
-                let guard = self.waker.lock();
-                if let Some(waker) = guard.as_ref() {
+            if self.waiting.compare_exchange(waiting, -1, Ordering::SeqCst, Ordering::Relaxed).is_ok() {
+                let mut guard = self.waker.lock();
+                if let Some(waker) = guard.take() {
                     waker.wake_by_ref();
                     drop(guard);
                     trace_log!("done {}->{} wake {}", count, left, waiting);
                 } else {
                     drop(guard);
-                    trace_log!("done {}->{} waiting{} but no waker", count, left, waiting);
+                    trace_log!("done {}->{} wake {} but no waker", count, left, waiting);
                 }
             }
+            // some one already wake
         } else {
             trace_log!("done {}->{} waiting {}", count, left, waiting);
         }
@@ -318,10 +318,9 @@ impl<'a> WaitGroupFuture<'a> {
 
     #[inline(always)]
     fn _clear(&mut self) {
-        if self.waker.is_none() {
-            return;
+        if self.waker.take().is_some() {
+            self.wg.cancel_wait();
         }
-        self.wg.cancel_wait();
     }
 }
 
@@ -342,9 +341,11 @@ impl<'a> Future for WaitGroupFuture<'a> {
         }
         let force = {
             if let Some(waker) = _self.waker.as_ref() {
-                // Sometimes tokio will make waker ineffect,
-                // we should always check before reuse the same waker.
-                if waker.will_wake(ctx.waker()) {
+                // First check if someone take the waker
+                if _self.wg.waiting.load(Ordering::SeqCst) >= 0 &&
+                    // Sometimes tokio will make waker ineffect,
+                    // we should always check before reuse the same waker.
+                    waker.will_wake(ctx.waker()) {
                     return Poll::Pending;
                 }
                 // The waker is not usable, reg another
