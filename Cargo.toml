@@ -11,8 +11,6 @@ repository = "https://github.com/frostyplanet/atomic-waitgroup-rs/"
 keywords = ["async", "waitgroup", "concurrency"]
 categories = ["concurrency", "data-structures"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [features]
 default = []
 smol = [] # just for test
