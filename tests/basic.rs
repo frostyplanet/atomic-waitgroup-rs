@@ -59,7 +59,7 @@ fn basic_wait_group_multi_waitto_and_add() {
             wg.add(1);
             let _wg = wg.clone();
             async_spawn_detach!(async move {
-                sleep(Duration::from_millis((_i % 2) + 1)).await;
+                //sleep(Duration::from_millis((_i % 2) + 1)).await;
                 _wg.done();
             });
             wg.wait_to(10).await;
