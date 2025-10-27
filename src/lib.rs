@@ -58,7 +58,7 @@ use std::{
     },
     task::{Context, Poll, Waker},
 };
-use parking_lot::Mutex;
+use std::sync::Mutex;
 
 /*
 
@@ -249,7 +249,7 @@ impl WaitGroupInner {
         }
         if left <= waiting {
             if self.waiting.compare_exchange(waiting, -1, Ordering::SeqCst, Ordering::Relaxed).is_ok() {
-                let mut guard = self.waker.lock();
+                let mut guard = self.waker.lock().unwrap();
                 if let Some(waker) = guard.take() {
                     waker.wake_by_ref();
                     drop(guard);
@@ -270,7 +270,7 @@ impl WaitGroupInner {
     fn set_waker(&self, waker: Arc<Waker>, target: usize, force: bool) {
         trace_log!("set_waker {} force={}", target, force);
         {
-            let mut guard = self.waker.lock();
+            let mut guard = self.waker.lock().unwrap();
             if !force {
                 if guard.is_some() {
                     drop(guard);
@@ -290,7 +290,7 @@ impl WaitGroupInner {
     fn cancel_wait(&self) {
         trace_log!("cancel_wait");
         {
-            let mut guard = self.waker.lock();
+            let mut guard = self.waker.lock().unwrap();
             self.waiting.store(-1, Ordering::SeqCst);
             let _ = guard.take();
         }
@@ -395,7 +395,7 @@ mod tests {
             });
             sleep(Duration::from_secs(1)).await;
             {
-                let guard = wg.0.waker.lock();
+                let guard = wg.0.waker.lock().unwrap();
                 assert!(guard.is_some());
                 assert_eq!(wg.0.waiting.load(Ordering::Acquire), 1);
             }
