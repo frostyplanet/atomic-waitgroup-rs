@@ -9,7 +9,7 @@ if [ -z "$MIRI_SEED" ]; then
 fi
 echo "MIRI_SEED" $MIRI_SEED
 
-MIRIFLAGS="$MIRIFLAGS -Zmiri-seed=$MIRI_SEED -Zmiri-backtrace=full"
+MIRIFLAGS="$MIRIFLAGS -Zmiri-seed=$MIRI_SEED -Zmiri-backtrace=full -Zmiri-no-short-fd-operations"
 export MIRIFLAGS
 echo $MIRIFLAGS
 # --lib: to skip doctest
