@@ -15,6 +15,8 @@
 //!
 //! * add() & done() is allowed to called concurrently.
 //!
+//! * Assumes add() and wait() are in the same thread.
+//!
 //! # Example
 //!
 //! ```

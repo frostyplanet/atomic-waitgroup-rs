@@ -18,4 +18,4 @@ will panic for this invalid usage.
 
 * add() & done() is allowed to called concurrently.
 
-* add() & wait() will not conflict, but concurrent calls are not a good pattern.
+* Assumes add() & wait() are in the same thread.
