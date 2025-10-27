@@ -276,8 +276,8 @@ impl WaitGroupInner {
                     drop(guard);
                     log_and_panic!("concurrent wait detected");
                 }
-                guard.replace(waker);
             }
+            guard.replace(waker);
             let old_target = self.waiting.swap(target as i64, Ordering::SeqCst);
             drop(guard);
             if ! force && old_target >= 0 {
