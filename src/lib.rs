@@ -341,24 +341,24 @@ impl<'a> Future for WaitGroupFuture<'a> {
         if _self._poll() {
             return Poll::Ready(());
         }
-        let force = {
-            if let Some(waker) = _self.waker.as_ref() {
-                // First check if someone take the waker
-                if _self.wg.waiting.load(Ordering::SeqCst) >= 0 &&
-                    // Sometimes tokio will make waker ineffect,
-                    // we should always check before reuse the same waker.
-                    waker.will_wake(ctx.waker()) {
-                    return Poll::Pending;
-                }
-                // The waker is not usable, reg another
-                true
-            } else {
-                false
-            }
-        };
+        //let force = {
+        //    if let Some(waker) = _self.waker.as_ref() {
+        //        // First check if someone take the waker
+        //        if _self.wg.waiting.load(Ordering::SeqCst) >= 0 &&
+        //            // Sometimes tokio will make waker ineffect,
+        //            // we should always check before reuse the same waker.
+        //            waker.will_wake(ctx.waker()) {
+        //            return Poll::Pending;
+        //        }
+        //        // The waker is not usable, reg another
+        //        true
+        //    } else {
+        //        false
+        //    }
+        //};
         // The Arc is for checking waker without lock
         let waker = Arc::new(ctx.waker().clone());
-        _self.wg.set_waker(waker.clone(), _self.target, force);
+        _self.wg.set_waker(waker.clone(), _self.target, true);
         _self.waker.replace(waker);
         if _self._poll() {
             return Poll::Ready(());
