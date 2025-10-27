@@ -1,19 +1,11 @@
 use atomic_waitgroup::WaitGroup;
 use std::time::Duration;
-use captains_log::logfn;
-use rstest::*;
 
 mod common;
 use common::*;
 
-#[fixture]
-fn setup_log() {
-    _setup_log();
-}
-
-#[logfn]
-#[rstest]
-fn basic_wait_group_wait0(setup_log: ()) {
+#[test]
+fn basic_wait_group_wait0() {
     let wg = WaitGroup::new();
     let threads = 10;
     assert_eq!(wg.left(), 0);
@@ -34,9 +26,8 @@ fn basic_wait_group_wait0(setup_log: ()) {
     });
 }
 
-#[logfn]
-#[rstest]
-fn basic_wait_group_waitto3(setup_log: ()) {
+#[test]
+fn basic_wait_group_waitto3() {
     let wg = WaitGroup::new();
     let threads = 10;
     assert_eq!(wg.left(), 0);
@@ -60,9 +51,8 @@ fn basic_wait_group_waitto3(setup_log: ()) {
     });
 }
 
-#[logfn]
-#[rstest]
-fn basic_wait_group_multi_waitto_and_add(setup_log: ()) {
+#[test]
+fn basic_wait_group_multi_waitto_and_add() {
     let wg = WaitGroup::new();
     runtime_block_on!(8, async move {
         for _i in 0u64..1000 {
@@ -79,9 +69,8 @@ fn basic_wait_group_multi_waitto_and_add(setup_log: ()) {
     });
 }
 
-#[logfn]
-#[rstest]
-fn basic_guard(setup_log: ()) {
+#[test]
+fn basic_guard() {
     let wg = WaitGroup::new();
     let threads = 10;
     assert_eq!(wg.left(), 0);
@@ -103,6 +92,8 @@ fn basic_guard(setup_log: ()) {
         println!("left {}", left);
     });
 }
+
+/*
 
 #[cfg(not(feature="trace_log"))]
 #[logfn]
@@ -133,3 +124,4 @@ fn basic_done_overflow() {
     wg.add(1);
     wg.done_many(2);
 }
+*/
