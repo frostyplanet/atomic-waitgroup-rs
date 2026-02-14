@@ -1,3 +1,7 @@
+# Deprecated
+
+This crate is deprecated, use [crossfire::waitgroup](https://docs.rs/crossfire/latest/crossfire/waitgroup/index.html) instead.
+
 # atomic-waitgroup
 
 A waitgroup support async with advanced features,
